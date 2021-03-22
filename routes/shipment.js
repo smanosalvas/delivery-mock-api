@@ -10,14 +10,15 @@ const GET_PROVIDERS = `SELECT * FROM DELIVERY_PROVIDER`;
 
 router.post('/', function (req, res, next) {
   const payload = req.body;
-
+  console.log(payload)
+  console.log(pool)
   pool.query(INSERT_PARCEL, 
              [payload.parcel.height, 
               payload.parcel.weight, 
               payload.parcel.width])
     .then(result => {
       const parcel_id = result.rows[0].parcel_id
-
+        console.log(parcel_id)
       return pool.query(INSERT_SHIPMENT, 
                         [parcel_id, 
                          payload.shipment.to_address, 
@@ -27,16 +28,26 @@ router.post('/', function (req, res, next) {
         return result.rows[0].shipment_id
     }).then(async (shipment_id) => {
       const providers = await pool.query(GET_PROVIDERS);
-      const rates = providers.rows.map(provider => {
+      let rates = providers.rows.map(provider => {
         return Object.assign(provider, {rate: Math.floor(Math.random() * 21)});
+      });
+
+      rates = rates.sort((rateA, rateB)=> {
+          if(rateA.rate < rateB.rate) return 1;
+          if(rateA.rate > rateB.rate) return -1;
+          if(rateA.rate == rateB.rate) return 0;
       });
 
       for (rate of rates) {
         const rate_id = await pool.query(INSERT_RATES, [shipment_id, rate.provider_id, rate.rate]);
       }
 
+      rates = rates.slice(0,3);
       return res.json({shipment_id, rates});
-    }).catch(e => res.status(500).send(e.stack));
+    }).catch(e => {
+        console.log(e)
+        return res.status(500).send(e.stack);
+    });
 });
 
 router.get('/:shipment_id', function(req, res, next) {
